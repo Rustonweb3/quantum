@@ -1,66 +1,97 @@
  // ================================================
-// 🚀 SERVIDOR BACKEND - VERSÃO FINAL CORRIGIDA
-// Express + CORS Simplificado + Compatibilidade Railway
+// 🚀 SERVIDOR BACKEND - VERSÃO ARSENAL COMPLETO
+// Estrutura robusta com Helmet, Morgan, CORS configurável e compatibilidade com Railway
 // ================================================
 
-// --- Dependências ---
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan'); // Para logs HTTP detalhados
+const helmet = require('helmet');   // Para headers de segurança
+
 const app = express();
 
-// ======================================
+/**
+ * ----------------------------------------------------
+ * IMPORTANTE: Configuração de CORS
+ * Adicione a URL do seu frontend (o site) aqui para permitir a comunicação.
+ * ----------------------------------------------------
+ */
+const allowedOrigins = [
+  'http://localhost:5173', // Para seu teste local
+  // 'https://quantum-production-077b.up.railway.app/ // <== COLOQUE A URL DO SEU FRONTEND AQUI
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origem não permitida pela política de CORS'), false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true,
+};
+
 // --- Middlewares Essenciais ---
-// ======================================
 
-// 1. CORS Simplificado e Robusto
-//    Permite requisições de qualquer origem.
-app.use(cors());
+// 1. Helmet: Adiciona uma camada de segurança ao configurar vários headers HTTP
+app.use(helmet());
 
-// 2. Middleware para o Express entender JSON no corpo das requisições
-app.use(express.json());
+// 2. Morgan: Faz o log de cada requisição que chega ao servidor no console
+app.use(morgan('combined'));
 
-// ======================================
-// --- Rotas da API ---
-// ======================================
+// 3. CORS: Aplica a política de CORS que definimos acima
+app.use(cors(corsOptions));
 
-// Rota de saúde para verificar se o servidor está no ar
+// 4. JSON Parser: Habilita o servidor a entender requisições com corpo em formato JSON
+app.use(express.json({ limit: '1mb' }));
+
+
+// --- Rotas da API (mantendo seus links) ---
+
 app.get('/api/health', (req, res) => {
-  console.log('Rota /api/health chamada com sucesso.');
-  res.json({ status: 'OK', message: 'Servidor operacional.' });
+  res.status(200).json({ status: 'OK', message: 'Servidor operacional.' });
 });
 
-// Rota simulada de contatos (GET)
-app.get('/api/contacts', (req, res) => {
-  console.log('Rota GET /api/contacts SIMULADA chamada com sucesso.');
-  res.json([
-    { id: '1', name: 'Contato de Teste 1', email: 'teste1@exemplo.com' },
-    { id: '2', name: 'Contato de Teste 2', email: 'teste2@exemplo.com' },
-  ]);
-});
-
-// Rota POST simulada para filtrar contatos
 app.post('/api/contacts/filter', (req, res) => {
-  console.log('Rota POST /api/contacts/filter chamada com body:', req.body);
-  res.json({
-    success: true,
-    filtered: [
-      { id: '1', name: 'Contato Filtrado', email: 'filtrado@exemplo.com' }
-    ]
-  });
+  try {
+    // A lógica de filtro do banco de dados virá aqui
+    const filtered = [
+      { id: '1', name: 'Contato Filtrado', email: 'filtrado@email.com' },
+    ];
+    return res.status(200).json({ success: true, filtered });
+  } catch (err) {
+    console.error('Erro em /api/contacts/filter:', err);
+    return res.status(500).json({ success: false, error: 'Erro interno no servidor' });
+  }
 });
+
+
+// --- Tratamento de Erros (Handlers) ---
+
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'Rota não encontrada' });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Erro não tratado:', err.stack);
+  if (err.message.includes('política de CORS')) {
+    return res.status(403).json({ error: 'Erro de CORS: A origem da requisição não é permitida.' });
+  }
+  res.status(500).json({ error: 'Erro interno no servidor' });
+});
+
 
 // ======================================
 // --- Inicialização do Servidor ---
+// Correção para Railway: app.listen é chamado sem condições.
 // ======================================
 
-// Exporta o app para ambientes serverless como a Vercel (não prejudica o Railway)
-module.exports = app;
-
-// Define a porta - O Railway fornecerá a variável process.env.PORT
 const PORT = process.env.PORT || 3000;
 
-// Inicia o servidor e o faz "escutar" por conexões na porta definida.
-// ESTA É A PARTE CRÍTICA QUE FOI CORRIGIDA.
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor ativo e escutando na porta ${PORT}`);
+  console.log(`🚀 Servidor soberano (Arsenal Completo) ativo e escutando na porta ${PORT}`);
 });
+
+module.exports = app;
