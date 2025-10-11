@@ -6,9 +6,11 @@ import pg from 'pg';
 const app = express();
 
 // --- REFORÇO DE MIDDLEWARES ---
+// Garantir que estes middlewares sejam os primeiros a serem executados.
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
+// A linha mais importante: garantir que o "desempacotador" de JSON esteja pronto.
+app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
 
 // --- ROTAS DA API ---
@@ -19,11 +21,11 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
 });
 
-// Rota para filtrar contatos (AGORA CORRIGIDA PARA ACEITAR POST)
+// Rota para filtrar contatos
 app.post('/api/contacts/filter', async (req, res) => {
     try {
         const filterObject = req.body;
-        console.log("ROTA CORRETA: Filtro recebido no backend via POST:", filterObject);
+        console.log("FILTRO RECEBIDO NO BACKEND:", filterObject);
         
         // Simulação de resposta bem-sucedida
         const mockResponse = [
@@ -58,6 +60,7 @@ app.all('/api/*', (req, res) => {
 
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
+// Usar a porta que o Render fornece ou 3001 como padrão.
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor soberano rodando com força total na porta ${PORT}`);
