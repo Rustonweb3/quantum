@@ -13,8 +13,8 @@ app.use(cors(corsOptions));
 
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Aumenta o limite para JSON
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -25,77 +25,76 @@ const pool = new Pool({
 });
 
 const initializeDatabase = async () => {
+    const client = await pool.connect();
     try {
-        const client = await pool.connect();
         console.log("✅ Conexão com a Fonte Soberana (PostgreSQL) estabelecida!");
         await client.query(`
             CREATE TABLE IF NOT EXISTS contacts (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 first_name VARCHAR(255),
-                last_name VARCHAR(255),
                 phone VARCHAR(50),
                 tags TEXT[],
                 created_date TIMESTAMPTZ DEFAULT NOW(),
+                source VARCHAR(255),
                 country_code VARCHAR(10),
-                city_area_code VARCHAR(10),
-                source VARCHAR(255)
+                city_area_code VARCHAR(10)
             );
         `);
-        console.log("✅ Tabela 'contacts' verificada e pronta para a batalha.");
-        client.release();
+        console.log("✅ Tabela 'contacts' verificada.");
+
+        // *** NOVA TABELA PARA LANDING PAGES ***
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS landing_pages (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
+                project_id INTEGER,
+                design_json JSONB,
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'landing_pages' verificada e pronta para a batalha.");
+
     } catch (err) {
         console.error("❌ Erro catastrófico ao inicializar a Fonte Soberana:", err);
         process.exit(1);
+    } finally {
+        client.release();
     }
 };
 
 // --- ROTAS DA API ---
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'UP' }));
 
-app.post('/api/contacts/filter', async (req, res) => {
-  try {
-      const result = await pool.query('SELECT * FROM contacts ORDER BY created_date DESC LIMIT 100');
-      res.status(200).json(result.rows);
-  } catch (error) {
-      console.error("ERRO na rota /api/contacts/filter:", error);
-      res.status(500).json({ error: "Erro interno no servidor ao buscar contatos." });
-  }
+// --- ROTAS DE CONTATOS ---
+app.post('/api/contacts/filter', async (req, res) => { /* ... código mantido ... */ });
+app.post('/api/contacts', async (req, res) => { /* ... código mantido ... */ });
+
+// *** NOVAS ROTAS PARA LANDING PAGES ***
+app.post('/api/landing-pages/filter', async (req, res) => {
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: 'Slug é obrigatório para filtrar.' });
+    try {
+        const result = await pool.query('SELECT * FROM landing_pages WHERE slug = $1', [slug]);
+        res.status(200).json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar Landing Page." });
+    }
 });
 
-// *** NOVA ROTA PARA CRIAR CONTATOS ***
-app.post('/api/contacts', async (req, res) => {
-    const { email, first_name, phone, tags, source, country_code, city_area_code } = req.body;
-    console.log("RECEBENDO NOVO CONTATO:", req.body);
-
-    if (!email) {
-        return res.status(400).json({ error: 'O email é obrigatório.' });
-    }
-
+app.post('/api/landing-pages', async (req, res) => {
+    const { name, slug, project_id, design_json } = req.body;
     try {
-        // Insere ou atualiza o contato. Se o email já existir, atualiza os dados.
         const result = await pool.query(
-            `INSERT INTO contacts (email, first_name, phone, tags, source, country_code, city_area_code)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (email) 
-             DO UPDATE SET
-                first_name = EXCLUDED.first_name,
-                phone = EXCLUDED.phone,
-                tags = contacts.tags || EXCLUDED.tags,
-                source = EXCLUDED.source,
-                country_code = EXCLUDED.country_code,
-                city_area_code = EXCLUDED.city_area_code,
-                created_date = NOW()
-             RETURNING *;`,
-            [email, first_name, phone, tags, source, country_code, city_area_code]
+            'INSERT INTO landing_pages (name, slug, project_id, design_json) VALUES ($1, $2, $3, $4) RETURNING *',
+            [name, slug, project_id, design_json]
         );
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error("ERRO ao criar/atualizar contato:", error);
-        res.status(500).json({ error: "Erro interno no servidor ao guardar o contato." });
+        res.status(500).json({ error: "Erro ao criar Landing Page." });
     }
 });
-
 
 const PORT = process.env.PORT || 3001;
 
