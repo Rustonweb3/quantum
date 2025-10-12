@@ -1,56 +1,46 @@
 import express from 'express';
 import morgan from 'morgan';
 import helmet from 'helmet';
-import pg from 'pg';
+import cors from 'cors'; // IMPORTANTE: Importa a biblioteca cors
 
 const app = express();
 
+// --- CONFIGURAÇÃO DA PONTE SOBERANA ---
+const corsOptions = {
+  origin: 'https://quantum-frontend-1l5.pages.dev' // Permite APENAS o seu frontend
+};
+app.use(cors(corsOptions));
+
+// --- MIDDLEWARES PADRÃO ---
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// --- ROTAS DA API ---
 app.get('/api/health', (req, res) => {
-  console.log("Health check recebido com sucesso.");
-  res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
+  console.log("Health check recebido com sucesso (via Ponte Soberana).");
+  res.status(200).json({ status: 'UP' });
 });
 
-app.post('/api/contacts/filter', async (req, res) => {
-    try {
-        const filterObject = req.body;
-        console.log("ROTA CORRETA: Filtro recebido no backend via POST:", filterObject);
-        
-        const mockResponse = [
-            { id: 'contact1', email: 'exemplo1-corrigido@email.com', tags: filterObject?.tags?.$all || [] },
-            { id: 'contact2', email: 'exemplo2-corrigido@email.com', tags: filterObject?.tags?.$all || [] }
-        ];
-        
-        res.status(200).json(mockResponse);
-
-    } catch (error) {
-        console.error("ERRO na rota /api/contacts/filter:", error);
-        res.status(500).json({ error: "Erro interno no servidor ao processar o filtro." });
-    }
+app.post('/api/contacts/filter', (req, res) => {
+  try {
+      console.log("ROTA POST RECEBIDA DIRETAMENTE:", req.body);
+      const mockResponse = [
+          { id: 'contact1', email: 'vitoria@soberania.digital' },
+          { id: 'contact2', email: 'missao_cumprida@email.com' }
+      ];
+      res.status(200).json(mockResponse);
+  } catch (error) {
+      res.status(500).json({ error: "Erro interno no servidor." });
+  }
 });
 
-app.get('/api/landing-pages', async (req, res) => {
-    try {
-        res.status(200).json([
-            { id: 'lp1', name: 'Landing Page de Exemplo 1' }
-        ]);
-    } catch (error) {
-         console.error("ERRO na rota /api/landing-pages:", error);
-        res.status(500).json({ error: "Erro interno no servidor." });
-    }
-});
-
-app.all('/api/*', (req, res) => {
-    res.status(404).json({ error: `Rota da API não encontrada: ${req.method} ${req.path}` });
-});
+// ... (outras rotas podem ser adicionadas aqui no futuro)
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor soberano rodando com força total na porta ${PORT}`);
+  console.log(`Servidor com Ponte Soberana ativa na porta ${PORT}`);
 });
 
 export default app;
