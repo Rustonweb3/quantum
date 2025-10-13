@@ -211,7 +211,10 @@ app.get('/public/lp/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json FROM landing_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0].design_json);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
+    } catch (error) { 
+        console.error("Erro ao buscar dados da landing page pública:", error);
+        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
+    }
 });
 app.get('/public/typ/:slug', async (req, res) => {
     try {
@@ -219,7 +222,10 @@ app.get('/public/typ/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json FROM thank_you_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0].design_json);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
+    } catch (error) { 
+        console.error("Erro ao buscar dados da thank you page pública:", error);
+        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
+    }
 });
 app.get('/public/sales/:slug', async (req, res) => {
     try {
@@ -227,7 +233,10 @@ app.get('/public/sales/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json, offer_json FROM sales_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
+    } catch (error) { 
+        console.error("Erro ao buscar dados da sales page pública:", error);
+        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
+    }
 });
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
