@@ -6,41 +6,115 @@ import pg from 'pg';
 
 const app = express();
 
-// --- CONFIGURAÇÃO DO SERVIDOR ---
-app.use(cors({ origin: 'https://quantum-frontend-1l5.pages.dev' }));
+// --- CONFIGURAÇÃO INICIAL ---
+const corsOptions = {
+  origin: 'https://quantum-frontend-1l5.pages.dev' // A origem do seu frontend soberano
+};
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// --- CONEXÃO COM A BASE DE DADOS POSTGRESQL ---
+// --- CONEXÃO COM A FONTE SOBERANA (PostgreSQL) ---
 const { Pool } = pg;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
-// --- ARQUITETURA DO BANCO DE DADOS (CRIAÇÃO DAS "ESPERAS") ---
+// --- INICIALIZAÇÃO E CRIAÇÃO DAS TABELAS ESPELHO ---
 const initializeDatabase = async () => {
     const client = await pool.connect();
     try {
         console.log("✅ Conexão com a Fonte Soberana (PostgreSQL) estabelecida!");
-        const createTable = async (tableName, schema) => {
-            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (${schema});`);
-            console.log(`✅ Tabela '${tableName}' espelhada com sucesso.`);
-        };
 
-        // Tabelas espelhadas a partir do seu sistema funcional
-        await createTable('funnel_projects', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('automations', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, project_id INTEGER REFERENCES funnel_projects(id) ON DELETE CASCADE, landing_page_id INTEGER, thank_you_page_id INTEGER, trigger_tag VARCHAR(255), company_id VARCHAR(255), status VARCHAR(50) DEFAULT 'inactive', steps JSONB, created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('contacts', `id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, first_name VARCHAR(255), phone VARCHAR(50), tags TEXT[], source VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('landing_pages', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER REFERENCES funnel_projects(id), design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('thank_you_pages', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER REFERENCES funnel_projects(id), design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('sales_pages', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER REFERENCES funnel_projects(id), design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
-        await createTable('segments', `id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, rules JSONB, created_date TIMESTAMPTZ DEFAULT NOW()`);
+        // Tabela de Contatos (já existente, mas verificada)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS contacts (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                first_name VARCHAR(255),
+                phone VARCHAR(50),
+                tags TEXT[],
+                created_date TIMESTAMPTZ DEFAULT NOW(),
+                source VARCHAR(255),
+                country_code VARCHAR(10),
+                city_area_code VARCHAR(10)
+            );
+        `);
+        console.log("✅ Tabela 'contacts' verificada.");
 
-        // Tabela CRÍTICA descoberta a partir da análise do seu Dashboard.jsx
-        await createTable('page_visits', `id SERIAL PRIMARY KEY, contact_id INTEGER, page_slug VARCHAR(255), duration_seconds INTEGER, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()`);
+        // Tabela de Landing Pages (já existente, mas verificada)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS landing_pages (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
+                project_id INTEGER,
+                design_json JSONB,
+                created_by VARCHAR(255),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'landing_pages' verificada.");
+
+        // Tabela de Thank You Pages (Nova)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS thank_you_pages (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
+                project_id INTEGER,
+                design_json JSONB,
+                created_by VARCHAR(255),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'thank_you_pages' criada e pronta para a batalha.");
+
+        // Tabela de Sales Pages (Nova)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS sales_pages (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
+                project_id INTEGER,
+                design_json JSONB,
+                created_by VARCHAR(255),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'sales_pages' criada e pronta para a batalha.");
+
+        // Tabela de Funnel Projects (Nova)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS funnel_projects (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                created_by VARCHAR(255),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'funnel_projects' criada e pronta para a batalha.");
+
+        // Tabela de Automations (Nova)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS automations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                project_id INTEGER,
+                landing_page_id INTEGER,
+                thank_you_page_id INTEGER,
+                trigger_tag VARCHAR(255),
+                company_id VARCHAR(255),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'automations' criada e pronta para a batalha.");
 
     } catch (err) {
         console.error("❌ Erro catastrófico ao inicializar a Fonte Soberana:", err);
@@ -50,64 +124,133 @@ const initializeDatabase = async () => {
     }
 };
 
-// --- FÁBRICA DE ROTAS DA API (O ENCAIXE DAS "ESPERAS") ---
-const createEntityRoutes = (entityName) => {
-    const tableName = entityName.replace(/-/g, '_');
+// --- ROTAS DA API ESPELHO ---
 
-    // Rota para BUSCAR/FILTRAR (espelha o método .filter())
-    app.post(`/api/${entityName}/filter`, async (req, res) => {
-        try {
-            let query = `SELECT * FROM ${tableName}`;
-            const filterKeys = Object.keys(req.body);
-            const values = Object.values(req.body);
-
-            if (filterKeys.length > 0) {
-                const whereClauses = filterKeys.map((key, i) => `${key} = $${i + 1}`);
-                query += ` WHERE ${whereClauses.join(' AND ')}`;
-            }
-            query += ` ORDER BY created_date DESC`;
-
-            const result = await pool.query(query, values);
-            res.status(200).json(result.rows);
-        } catch (error) {
-            console.error(`ERRO [filter] em ${tableName}:`, error);
-            res.status(500).json({ error: `Erro ao buscar ${tableName}.` });
-        }
-    });
-
-    // Rota para CRIAR (espelha o método .create())
-    app.post(`/api/${entityName}`, async (req, res) => {
-        try {
-            const columns = Object.keys(req.body);
-            const values = Object.values(req.body);
-            if (columns.length === 0) {
-                return res.status(400).json({ error: 'Nenhum dado fornecido para criação.' });
-            }
-            const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
-            const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
-            const result = await pool.query(query, values);
-            res.status(201).json(result.rows[0]);
-        } catch (error) {
-            console.error(`ERRO [create] em ${tableName}:`, error);
-            res.status(500).json({ error: `Erro ao criar ${tableName}.` });
-        }
-    });
-};
-
-// --- ATIVAÇÃO DE TODAS AS ROTAS ESPELHADAS ---
+// Rota de verificação
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'UP' }));
-const entities = [
-    'funnel-projects', 'automations', 'contacts', 'landing-pages', 
-    'thank-you-pages', 'sales-pages', 'segments', 'page-visits'
-];
-entities.forEach(createEntityRoutes);
+
+// --- ROTAS DE CONTATOS ---
+app.post('/api/contacts/filter', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM contacts ORDER BY created_date DESC');
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Erro ao buscar contatos:", error);
+        res.status(500).json({ error: "Erro ao buscar contatos." });
+    }
+});
+
+app.post('/api/contacts', async (req, res) => {
+    const { email, first_name, phone, tags, source, country_code, city_area_code } = req.body;
+    if (!email) {
+        return res.status(400).json({ error: 'O email é obrigatório.' });
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO contacts (email, first_name, phone, tags, source, country_code, city_area_code) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [email, first_name, phone, tags, source, country_code, city_area_code]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error("Erro ao criar contato:", error);
+        if (error.code === '23505') { // Código para violação de unicidade
+            return res.status(409).json({ error: "Este email já existe." });
+        }
+        res.status(500).json({ error: "Erro ao criar contato." });
+    }
+});
+
+
+// --- ROTAS DE LANDING PAGES ---
+app.post('/api/landing-pages/filter', async (req, res) => {
+    const { slug } = req.body;
+    try {
+        const query = slug ? 'SELECT * FROM landing_pages WHERE slug = $1' : 'SELECT * FROM landing_pages';
+        const params = slug ? [slug] : [];
+        const result = await pool.query(query, params);
+        res.status(200).json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar Landing Pages." });
+    }
+});
+
+app.post('/api/landing-pages', async (req, res) => {
+    const { name, slug, project_id, design_json, created_by } = req.body;
+    try {
+        const result = await pool.query(
+            'INSERT INTO landing_pages (name, slug, project_id, design_json, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [name, slug, project_id, design_json, created_by]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao criar Landing Page." });
+    }
+});
+
+// --- ROTAS DE FUNNEL PROJECTS ---
+app.post('/api/funnel-projects/filter', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM funnel_projects ORDER BY created_date DESC');
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Erro ao buscar projetos:", error);
+        res.status(500).json({ error: "Erro ao buscar projetos de funil." });
+    }
+});
+
+app.post('/api/funnel-projects', async (req, res) => {
+    const { name, description, created_by } = req.body;
+    if (!name) {
+        return res.status(400).json({ error: 'O nome do projeto é obrigatório.' });
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO funnel_projects (name, description, created_by) VALUES ($1, $2, $3) RETURNING *',
+            [name, description, created_by]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error("Erro ao criar projeto:", error);
+        res.status(500).json({ error: "Erro ao criar projeto de funil." });
+    }
+});
+
+// --- ROTAS DE AUTOMATIONS ---
+app.post('/api/automations/filter', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM automations ORDER BY created_date DESC');
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Erro ao buscar automações:", error);
+        res.status(500).json({ error: "Erro ao buscar automações." });
+    }
+});
+
+app.post('/api/automations', async (req, res) => {
+    const { name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id } = req.body;
+    if (!name || !project_id) {
+        return res.status(400).json({ error: 'Nome e ID do projeto são obrigatórios.' });
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO automations (name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error("Erro ao criar automação:", error);
+        res.status(500).json({ error: "Erro ao criar automação." });
+    }
+});
+
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 3001;
+
 initializeDatabase().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Servidor Espelho ATIVO e SOBERANO na porta ${PORT}`);
+      console.log(`🚀 Servidor com Motor Espelho ativo na porta ${PORT}`);
     });
 });
 
-export default app; 
+export default app;
