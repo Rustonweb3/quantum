@@ -255,6 +255,50 @@ app.post('/api/page-visits/filter', async (req, res) => {
   }
 });
 
+// --- ROTAS DE ANALYTICS E DASHBOARD ---
+app.get('/api/analytics/overview', async (req, res) => {
+  try {
+    const results = await Promise.all([
+      pool.query('SELECT COUNT(*) AS total_contacts FROM contacts'),
+      pool.query('SELECT COUNT(*) AS total_automations FROM automations'),
+      pool.query('SELECT COUNT(*) AS total_lps FROM landing_pages'),
+      pool.query('SELECT COUNT(*) AS total_sales_pages FROM sales_pages'),
+      pool.query('SELECT COUNT(*) AS total_visits FROM page_visits'),
+      pool.query('SELECT page_type, COUNT(*) AS total FROM page_visits GROUP BY page_type')
+    ]);
+
+    const [contacts, automations, lps, sales, visits, byType] = results.map(r => r.rows);
+
+    res.status(200).json({
+      contacts: parseInt(contacts[0]?.total_contacts || 0, 10),
+      automations: parseInt(automations[0]?.total_automations || 0, 10),
+      landing_pages: parseInt(lps[0]?.total_lps || 0, 10),
+      sales_pages: parseInt(sales[0]?.total_sales_pages || 0, 10),
+      total_visits: parseInt(visits[0]?.total_visits || 0, 10),
+      visits_by_type: byType.map(item => ({...item, total: parseInt(item.total, 10)}))
+    });
+  } catch (err) {
+    console.error('Erro ao obter métricas do dashboard:', err);
+    res.status(500).json({ error: 'Falha ao carregar métricas do dashboard.' });
+  }
+});
+
+app.get('/api/analytics/visits-history', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT date_trunc('day', created_date) AS dia, COUNT(*) AS total
+      FROM page_visits
+      WHERE created_date > NOW() - INTERVAL '30 days'
+      GROUP BY dia
+      ORDER BY dia ASC
+    `);
+    res.status(200).json(result.rows.map(row => ({...row, total: parseInt(row.total, 10)})));
+  } catch (err) {
+    console.error('Erro ao obter histórico de visitas:', err);
+    res.status(500).json({ error: 'Falha ao obter histórico de visitas.' });
+  }
+});
+
 // --- ROTAS PÚBLICAS ---
 app.get('/public/lp/:slug', async (req, res) => {
     try {
