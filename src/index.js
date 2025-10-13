@@ -87,6 +87,21 @@ const initializeDatabase = async () => {
             );
         `);
         console.log("✅ Tabela 'automations' verificada.");
+        
+        // Tabela de Page Visits
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS page_visits (
+                id SERIAL PRIMARY KEY,
+                page_type VARCHAR(50) NOT NULL,
+                slug VARCHAR(255) NOT NULL,
+                ip_address VARCHAR(64),
+                user_agent TEXT,
+                referrer TEXT,
+                country VARCHAR(100),
+                created_date TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabela 'page_visits' verificada.");
 
     } catch (err) {
         console.error("❌ Erro catastrófico ao inicializar a Fonte Soberana:", err);
@@ -204,6 +219,42 @@ app.post('/api/thank-you-pages', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Erro ao criar thank you page' }); }
 });
 
+// --- ROTAS DE PAGE VISITS ---
+app.post('/api/page-visits', async (req, res) => {
+  try {
+    const { page_type, slug, referrer, country } = req.body || {};
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ua = req.headers['user-agent'] || 'unknown';
+
+    const result = await pool.query(
+      `INSERT INTO page_visits (page_type, slug, ip_address, user_agent, referrer, country)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [page_type || 'unknown', slug || 'unknown', ip, ua, referrer || null, country || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Erro ao registrar visita:', err);
+    res.status(500).json({ error: 'Falha ao registrar visita.' });
+  }
+});
+
+app.post('/api/page-visits/filter', async (req, res) => {
+  try {
+    const { page_type } = req.body || {};
+    const query = page_type
+      ? 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits WHERE page_type = $1 GROUP BY page_type'
+      : 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits GROUP BY page_type';
+    const params = page_type ? [page_type] : [];
+    const result = await pool.query(query, params);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Erro ao buscar métricas de visitas:', err);
+    res.status(500).json({ error: 'Falha ao buscar métricas.' });
+  }
+});
+
 // --- ROTAS PÚBLICAS ---
 app.get('/public/lp/:slug', async (req, res) => {
     try {
@@ -211,10 +262,7 @@ app.get('/public/lp/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json FROM landing_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0].design_json);
-    } catch (error) { 
-        console.error("Erro ao buscar dados da landing page pública:", error);
-        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
-    }
+    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
 });
 app.get('/public/typ/:slug', async (req, res) => {
     try {
@@ -222,10 +270,7 @@ app.get('/public/typ/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json FROM thank_you_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0].design_json);
-    } catch (error) { 
-        console.error("Erro ao buscar dados da thank you page pública:", error);
-        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
-    }
+    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
 });
 app.get('/public/sales/:slug', async (req, res) => {
     try {
@@ -233,10 +278,7 @@ app.get('/public/sales/:slug', async (req, res) => {
         const result = await pool.query('SELECT design_json, offer_json FROM sales_pages WHERE slug = $1', [slug]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
         res.status(200).json(result.rows[0]);
-    } catch (error) { 
-        console.error("Erro ao buscar dados da sales page pública:", error);
-        res.status(500).json({ error: "Erro ao buscar dados da página." }); 
-    }
+    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
 });
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
