@@ -52,7 +52,6 @@ const initializeDatabase = async () => {
         await client.query(`CREATE TABLE IF NOT EXISTS page_visits (id SERIAL PRIMARY KEY, page_type VARCHAR(50) NOT NULL, slug VARCHAR(255) NOT NULL, ip_address VARCHAR(64), user_agent TEXT, referrer TEXT, country VARCHAR(100), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'page_visits' verificada.");
 
-        // SOBERANIA_BEGIN: Tabela de Telemetria
         await client.query(`
           CREATE TABLE IF NOT EXISTS telemetry (
             id SERIAL PRIMARY KEY,
@@ -64,6 +63,21 @@ const initializeDatabase = async () => {
           );
         `);
         console.log("✅ Tabela 'telemetry' verificada.");
+
+        // SOBERANIA_BEGIN: Tabela de Watch Analytics
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS video_watch (
+            id SERIAL PRIMARY KEY,
+            video_id VARCHAR(255) NOT NULL,
+            page_slug VARCHAR(255),
+            user_id VARCHAR(255),
+            event_type VARCHAR(50) NOT NULL, -- play, pause, complete, leave
+            progress_seconds INTEGER DEFAULT 0,
+            duration_seconds INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT NOW()
+          );
+        `);
+        console.log("✅ Tabela 'video_watch' verificada.");
         // SOBERANIA_END
 
     } catch (err) {
@@ -136,6 +150,41 @@ app.post('/api/telemetry/filter', async (req, res) => {
   } catch (err) {
     console.error('Erro ao filtrar telemetria:', err);
     res.status(500).json({ error: 'Falha ao buscar telemetria.' });
+  }
+});
+
+// --- ROTAS DE VIDEO WATCH ---
+app.post('/api/video-watch', async (req, res) => {
+  try {
+    const { video_id, page_slug, user_id, event_type, progress_seconds, duration_seconds } = req.body || {};
+    const r = await pool.query(`
+      INSERT INTO video_watch (video_id, page_slug, user_id, event_type, progress_seconds, duration_seconds)
+      VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING *`,
+      [video_id, page_slug, user_id, event_type, progress_seconds || 0, duration_seconds || 0]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) {
+    console.error('Erro ao registrar evento de vídeo:', err);
+    res.status(500).json({ error: 'Falha ao registrar evento de vídeo.' });
+  }
+});
+
+app.post('/api/video-watch/filter', async (req, res) => {
+  try {
+    const { video_id, user_id, page_slug } = req.body || {};
+    const p = [], wh = [];
+    if (video_id) { p.push(video_id); wh.push(`video_id = $${p.length}`); }
+    if (user_id)  { p.push(user_id);  wh.push(`user_id = $${p.length}`); }
+    if (page_slug){ p.push(page_slug);wh.push(`page_slug = $${p.length}`); }
+    let q = 'SELECT * FROM video_watch';
+    if (wh.length) q += ' WHERE ' + wh.join(' AND ');
+    q += ' ORDER BY created_date DESC LIMIT 500';
+    const r = await pool.query(q, p);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('Erro ao buscar registros de vídeo:', err);
+    res.status(500).json({ error: 'Falha ao buscar registros de vídeo.' });
   }
 });
 
