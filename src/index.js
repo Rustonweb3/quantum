@@ -31,77 +31,40 @@ const initializeDatabase = async () => {
     try {
         console.log("✅ Conexão com a Fonte Soberana (PostgreSQL) estabelecida!");
 
-        // Tabela de Contatos
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS contacts (
-                id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, first_name VARCHAR(255),
-                phone VARCHAR(50), tags TEXT[], created_date TIMESTAMPTZ DEFAULT NOW(), source VARCHAR(255),
-                country_code VARCHAR(10), city_area_code VARCHAR(10)
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, first_name VARCHAR(255), phone VARCHAR(50), tags TEXT[], created_date TIMESTAMPTZ DEFAULT NOW(), source VARCHAR(255), country_code VARCHAR(10), city_area_code VARCHAR(10));`);
         console.log("✅ Tabela 'contacts' verificada.");
 
-        // Tabela de Landing Pages
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS landing_pages (
-                id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL,
-                project_id INTEGER, design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS landing_pages (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER, design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'landing_pages' verificada.");
 
-        // Tabela de Thank You Pages
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS thank_you_pages (
-                id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL,
-                project_id INTEGER, design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS thank_you_pages (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER, design_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'thank_you_pages' verificada.");
 
-        // Tabela de Sales Pages
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS sales_pages (
-                id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL,
-                project_id INTEGER, design_json JSONB, offer_json JSONB, created_by VARCHAR(255), 
-                created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS sales_pages (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE NOT NULL, project_id INTEGER, design_json JSONB, offer_json JSONB, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'sales_pages' verificada.");
 
-        // Tabela de Funnel Projects
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS funnel_projects (
-                id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, created_by VARCHAR(255),
-                created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS funnel_projects (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, created_by VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'funnel_projects' verificada.");
 
-        // Tabela de Automations
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS automations (
-                id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, project_id INTEGER, landing_page_id INTEGER,
-                thank_you_page_id INTEGER, trigger_tag VARCHAR(255), company_id VARCHAR(255),
-                created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS automations (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, project_id INTEGER, landing_page_id INTEGER, thank_you_page_id INTEGER, trigger_tag VARCHAR(255), company_id VARCHAR(255), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'automations' verificada.");
         
-        // Tabela de Page Visits
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS page_visits (
-                id SERIAL PRIMARY KEY,
-                page_type VARCHAR(50) NOT NULL,
-                slug VARCHAR(255) NOT NULL,
-                ip_address VARCHAR(64),
-                user_agent TEXT,
-                referrer TEXT,
-                country VARCHAR(100),
-                created_date TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
+        await client.query(`CREATE TABLE IF NOT EXISTS page_visits (id SERIAL PRIMARY KEY, page_type VARCHAR(50) NOT NULL, slug VARCHAR(255) NOT NULL, ip_address VARCHAR(64), user_agent TEXT, referrer TEXT, country VARCHAR(100), created_date TIMESTAMPTZ DEFAULT NOW());`);
         console.log("✅ Tabela 'page_visits' verificada.");
+
+        // SOBERANIA_BEGIN: Tabela de Telemetria
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS telemetry (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255),
+            event_type VARCHAR(100) NOT NULL,
+            origin_page VARCHAR(255),
+            payload JSONB,
+            created_date TIMESTAMPTZ DEFAULT NOW()
+          );
+        `);
+        console.log("✅ Tabela 'telemetry' verificada.");
+        // SOBERANIA_END
 
     } catch (err) {
         console.error("❌ Erro catastrófico ao inicializar a Fonte Soberana:", err);
@@ -115,143 +78,64 @@ const initializeDatabase = async () => {
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'UP' }));
 
 // --- ROTAS DE CONTATOS ---
-app.post('/api/contacts/filter', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM contacts ORDER BY created_date DESC');
-        res.status(200).json(result.rows);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar contatos." }); }
-});
-app.post('/api/contacts', async (req, res) => {
-    const { email, first_name, phone, tags, source, country_code, city_area_code } = req.body;
-    try {
-        const result = await pool.query( 'INSERT INTO contacts (email, first_name, phone, tags, source, country_code, city_area_code) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', [email, first_name, phone, tags, source, country_code, city_area_code]);
-        res.status(201).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao criar contato." }); }
-});
+app.post('/api/contacts/filter', async (req, res) => { try { const result = await pool.query('SELECT * FROM contacts ORDER BY created_date DESC'); res.status(200).json(result.rows); } catch (error) { console.error("Erro ao buscar contatos:", error); res.status(500).json({ error: "Erro ao buscar contatos." }); } });
+app.post('/api/contacts', async (req, res) => { const { email, first_name, phone, tags, source, country_code, city_area_code } = req.body; try { const result = await pool.query( 'INSERT INTO contacts (email, first_name, phone, tags, source, country_code, city_area_code) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', [email, first_name, phone, tags, source, country_code, city_area_code]); res.status(201).json(result.rows[0]); } catch (error) { console.error("Erro ao criar contato:", error); res.status(500).json({ error: "Erro ao criar contato." }); } });
 
 // --- ROTAS DE LANDING PAGES ---
-app.post('/api/landing-pages/filter', async (req, res) => {
-    const { slug } = req.body || {};
-    try {
-        const result = await pool.query(slug ? 'SELECT * FROM landing_pages WHERE slug = $1' : 'SELECT * FROM landing_pages', slug ? [slug] : []);
-        res.status(200).json(result.rows);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar Landing Pages." }); }
-});
-app.post('/api/landing-pages', async (req, res) => {
-    const { name, slug, project_id, design_json, created_by } = req.body;
-    try {
-        const result = await pool.query('INSERT INTO landing_pages (name, slug, project_id, design_json, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, slug, project_id, design_json, created_by]);
-        res.status(201).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao criar Landing Page." }); }
-});
+app.post('/api/landing-pages/filter', async (req, res) => { const { slug } = req.body || {}; try { const result = await pool.query(slug ? 'SELECT * FROM landing_pages WHERE slug = $1' : 'SELECT * FROM landing_pages', slug ? [slug] : []); res.status(200).json(result.rows); } catch (error) { console.error("Erro ao buscar Landing Pages:", error); res.status(500).json({ error: "Erro ao buscar Landing Pages." }); } });
+app.post('/api/landing-pages', async (req, res) => { const { name, slug, project_id, design_json, created_by } = req.body; try { const result = await pool.query('INSERT INTO landing_pages (name, slug, project_id, design_json, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, slug, project_id, design_json, created_by]); res.status(201).json(result.rows[0]); } catch (error) { console.error("Erro ao criar Landing Page:", error); res.status(500).json({ error: "Erro ao criar Landing Page." }); } });
 
 // --- ROTAS DE FUNNEL PROJECTS ---
-app.post('/api/funnel-projects/filter', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM funnel_projects ORDER BY created_date DESC');
-        res.status(200).json(result.rows);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar projetos de funil." }); }
-});
-app.post('/api/funnel-projects', async (req, res) => {
-    const { name, description, created_by } = req.body;
-    try {
-        const result = await pool.query('INSERT INTO funnel_projects (name, description, created_by) VALUES ($1, $2, $3) RETURNING *', [name, description, created_by]);
-        res.status(201).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao criar projeto de funil." }); }
-});
+app.post('/api/funnel-projects/filter', async (req, res) => { try { const result = await pool.query('SELECT * FROM funnel_projects ORDER BY created_date DESC'); res.status(200).json(result.rows); } catch (error) { console.error("Erro ao buscar projetos:", error); res.status(500).json({ error: "Erro ao buscar projetos de funil." }); } });
+app.post('/api/funnel-projects', async (req, res) => { const { name, description, created_by } = req.body; try { const result = await pool.query('INSERT INTO funnel_projects (name, description, created_by) VALUES ($1, $2, $3) RETURNING *', [name, description, created_by]); res.status(201).json(result.rows[0]); } catch (error) { console.error("Erro ao criar projeto:", error); res.status(500).json({ error: "Erro ao criar projeto de funil." }); } });
 
 // --- ROTAS DE AUTOMATIONS ---
-app.post('/api/automations/filter', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM automations ORDER BY created_date DESC');
-        res.status(200).json(result.rows);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar automações." }); }
-});
-app.post('/api/automations', async (req, res) => {
-    const { name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id } = req.body;
-    try {
-        const result = await pool.query('INSERT INTO automations (name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id]);
-        res.status(201).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao criar automação." }); }
-});
+app.post('/api/automations/filter', async (req, res) => { try { const result = await pool.query('SELECT * FROM automations ORDER BY created_date DESC'); res.status(200).json(result.rows); } catch (error) { console.error("Erro ao buscar automações:", error); res.status(500).json({ error: "Erro ao buscar automações." }); } });
+app.post('/api/automations', async (req, res) => { const { name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id } = req.body; try { const result = await pool.query('INSERT INTO automations (name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [name, project_id, landing_page_id, thank_you_page_id, trigger_tag, company_id]); res.status(201).json(result.rows[0]); } catch (error) { console.error("Erro ao criar automação:", error); res.status(500).json({ error: "Erro ao criar automação." }); } });
 
 // --- ROTAS DE SALES PAGES ---
-app.post('/api/sales-pages/filter', async (req, res) => {
-    try {
-        const { slug, project_id } = req.body || {};
-        let q = 'SELECT * FROM sales_pages';
-        const p = [];
-        const wh = [];
-        if (slug) { p.push(slug); wh.push(`slug = $${p.length}`); }
-        if (project_id) { p.push(project_id); wh.push(`project_id = $${p.length}`); }
-        if (wh.length) q += ' WHERE ' + wh.join(' AND ');
-        const r = await pool.query(q, p);
-        res.json(r.rows);
-    } catch (err) { res.status(500).json({ error: 'Erro ao buscar sales pages' }); }
-});
-app.post('/api/sales-pages', async (req, res) => {
-    try {
-        const { name, slug, project_id, design_json, offer_json, created_by } = req.body || {};
-        const r = await pool.query(`INSERT INTO sales_pages (name, slug, project_id, design_json, offer_json, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [name, slug, project_id, design_json || {}, offer_json || {}, created_by || 'unknown']);
-        res.json(r.rows[0]);
-    } catch (err) { res.status(500).json({ error: 'Erro ao criar sales page' }); }
-});
+app.post('/api/sales-pages/filter', async (req, res) => { try { const { slug, project_id } = req.body || {}; let q = 'SELECT * FROM sales_pages'; const p = []; const wh = []; if (slug) { p.push(slug); wh.push(`slug = $${p.length}`); } if (project_id) { p.push(project_id); wh.push(`project_id = $${p.length}`); } if (wh.length) q += ' WHERE ' + wh.join(' AND '); const r = await pool.query(q, p); res.json(r.rows); } catch (err) { console.error('Erro ao buscar sales pages:', err); res.status(500).json({ error: 'Erro ao buscar sales pages' }); } });
+app.post('/api/sales-pages', async (req, res) => { try { const { name, slug, project_id, design_json, offer_json, created_by } = req.body || {}; const r = await pool.query(`INSERT INTO sales_pages (name, slug, project_id, design_json, offer_json, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [name, slug, project_id, design_json || {}, offer_json || {}, created_by || 'unknown']); res.json(r.rows[0]); } catch (err) { console.error('Erro ao criar sales page:', err); res.status(500).json({ error: 'Erro ao criar sales page' }); } });
 
 // --- ROTAS DE THANK YOU PAGES ---
-app.post('/api/thank-you-pages/filter', async (req, res) => {
-    try {
-        const { slug, project_id } = req.body || {};
-        let q = 'SELECT * FROM thank_you_pages';
-        const p = [];
-        const wh = [];
-        if (slug) { p.push(slug); wh.push(`slug = $${p.length}`); }
-        if (project_id) { p.push(project_id); wh.push(`project_id = $${p.length}`); }
-        if (wh.length) q += ' WHERE ' + wh.join(' AND ');
-        const r = await pool.query(q, p);
-        res.json(r.rows);
-    } catch (err) { res.status(500).json({ error: 'Erro ao buscar thank you pages' }); }
-});
-app.post('/api/thank-you-pages', async (req, res) => {
-    try {
-        const { name, slug, project_id, design_json, created_by } = req.body || {};
-        const r = await pool.query(`INSERT INTO thank_you_pages (name, slug, project_id, design_json, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [name, slug, project_id, design_json || {}, created_by || 'unknown']);
-        res.json(r.rows[0]);
-    } catch (err) { res.status(500).json({ error: 'Erro ao criar thank you page' }); }
-});
+app.post('/api/thank-you-pages/filter', async (req, res) => { try { const { slug, project_id } = req.body || {}; let q = 'SELECT * FROM thank_you_pages'; const p = []; const wh = []; if (slug) { p.push(slug); wh.push(`slug = $${p.length}`); } if (project_id) { p.push(project_id); wh.push(`project_id = $${p.length}`); } if (wh.length) q += ' WHERE ' + wh.join(' AND '); const r = await pool.query(q, p); res.json(r.rows); } catch (err) { console.error('Erro ao buscar thank you pages:', err); res.status(500).json({ error: 'Erro ao buscar thank you pages' }); } });
+app.post('/api/thank-you-pages', async (req, res) => { try { const { name, slug, project_id, design_json, created_by } = req.body || {}; const r = await pool.query(`INSERT INTO thank_you_pages (name, slug, project_id, design_json, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [name, slug, project_id, design_json || {}, created_by || 'unknown']); res.json(r.rows[0]); } catch (err) { console.error('Erro ao criar thank you page:', err); res.status(500).json({ error: 'Erro ao criar thank you page' }); } });
 
 // --- ROTAS DE PAGE VISITS ---
-app.post('/api/page-visits', async (req, res) => {
+app.post('/api/page-visits', async (req, res) => { try { const { page_type, slug, referrer, country } = req.body || {}; const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress; const ua = req.headers['user-agent'] || 'unknown'; const result = await pool.query( `INSERT INTO page_visits (page_type, slug, ip_address, user_agent, referrer, country) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [page_type || 'unknown', slug || 'unknown', ip, ua, referrer || null, country || null] ); res.status(201).json(result.rows[0]); } catch (err) { console.error('Erro ao registrar visita:', err); res.status(500).json({ error: 'Falha ao registrar visita.' }); } });
+app.post('/api/page-visits/filter', async (req, res) => { try { const { page_type } = req.body || {}; const query = page_type ? 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits WHERE page_type = $1 GROUP BY page_type' : 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits GROUP BY page_type'; const params = page_type ? [page_type] : []; const result = await pool.query(query, params); res.status(200).json(result.rows); } catch (err) { console.error('Erro ao buscar métricas de visitas:', err); res.status(500).json({ error: 'Falha ao buscar métricas.' }); } });
+
+// --- ROTAS DE TELEMETRIA ---
+app.post('/api/telemetry', async (req, res) => {
   try {
-    const { page_type, slug, referrer, country } = req.body || {};
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const ua = req.headers['user-agent'] || 'unknown';
-
-    const result = await pool.query(
-      `INSERT INTO page_visits (page_type, slug, ip_address, user_agent, referrer, country)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [page_type || 'unknown', slug || 'unknown', ip, ua, referrer || null, country || null]
+    const { user_id, event_type, origin_page, payload } = req.body || {};
+    const r = await pool.query(
+      `INSERT INTO telemetry (user_id, event_type, origin_page, payload)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [user_id || null, event_type, origin_page || null, payload || {}]
     );
-
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(r.rows[0]);
   } catch (err) {
-    console.error('Erro ao registrar visita:', err);
-    res.status(500).json({ error: 'Falha ao registrar visita.' });
+    console.error('Erro ao registrar telemetria:', err);
+    res.status(500).json({ error: 'Falha ao registrar telemetria.' });
   }
 });
-
-app.post('/api/page-visits/filter', async (req, res) => {
+app.post('/api/telemetry/filter', async (req, res) => {
   try {
-    const { page_type } = req.body || {};
-    const query = page_type
-      ? 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits WHERE page_type = $1 GROUP BY page_type'
-      : 'SELECT page_type, COUNT(*) AS total, MAX(created_date) AS ultima_visita FROM page_visits GROUP BY page_type';
-    const params = page_type ? [page_type] : [];
-    const result = await pool.query(query, params);
-    res.status(200).json(result.rows);
+    const { event_type, origin_page, date_from, date_to } = req.body || {};
+    const wh = [], p = [];
+    if (event_type) { p.push(event_type); wh.push(`event_type = $${p.length}`); }
+    if (origin_page) { p.push(origin_page); wh.push(`origin_page = $${p.length}`); }
+    if (date_from) { p.push(date_from); wh.push(`created_date >= $${p.length}`); }
+    if (date_to)   { p.push(date_to);   wh.push(`created_date <  $${p.length}`); }
+    let q = 'SELECT * FROM telemetry';
+    if (wh.length) q += ' WHERE ' + wh.join(' AND ');
+    q += ' ORDER BY created_date DESC LIMIT 500';
+    const r = await pool.query(q, p);
+    res.json(r.rows);
   } catch (err) {
-    console.error('Erro ao buscar métricas de visitas:', err);
-    res.status(500).json({ error: 'Falha ao buscar métricas.' });
+    console.error('Erro ao filtrar telemetria:', err);
+    res.status(500).json({ error: 'Falha ao buscar telemetria.' });
   }
 });
 
@@ -299,31 +183,24 @@ app.get('/api/analytics/visits-history', async (req, res) => {
   }
 });
 
+app.get('/api/analytics/telemetry-overview', async (_req, res) => {
+  try {
+    const [byEvent, last24h] = await Promise.all([
+      pool.query(`SELECT event_type, COUNT(*)::int AS total FROM telemetry GROUP BY event_type ORDER BY total DESC`),
+      pool.query(`SELECT date_trunc('hour', created_date) AS hora, COUNT(*)::int AS total FROM telemetry WHERE created_date > NOW() - INTERVAL '24 hours' GROUP BY hora ORDER BY hora ASC`)
+    ]);
+    res.json({ by_event: byEvent.rows, last_24h: last24h.rows });
+  } catch (err) {
+    console.error('Erro no overview de telemetria:', err);
+    res.status(500).json({ error: 'Falha ao obter overview de telemetria.' });
+  }
+});
+
+
 // --- ROTAS PÚBLICAS ---
-app.get('/public/lp/:slug', async (req, res) => {
-    try {
-        const { slug } = req.params;
-        const result = await pool.query('SELECT design_json FROM landing_pages WHERE slug = $1', [slug]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
-        res.status(200).json(result.rows[0].design_json);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
-});
-app.get('/public/typ/:slug', async (req, res) => {
-    try {
-        const { slug } = req.params;
-        const result = await pool.query('SELECT design_json FROM thank_you_pages WHERE slug = $1', [slug]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
-        res.status(200).json(result.rows[0].design_json);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
-});
-app.get('/public/sales/:slug', async (req, res) => {
-    try {
-        const { slug } = req.params;
-        const result = await pool.query('SELECT design_json, offer_json FROM sales_pages WHERE slug = $1', [slug]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' });
-        res.status(200).json(result.rows[0]);
-    } catch (error) { res.status(500).json({ error: "Erro ao buscar dados da página." }); }
-});
+app.get('/public/lp/:slug', async (req, res) => { try { const { slug } = req.params; const result = await pool.query('SELECT design_json FROM landing_pages WHERE slug = $1', [slug]); if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' }); res.status(200).json(result.rows[0].design_json); } catch (error) { console.error("Erro ao buscar LP pública:", error); res.status(500).json({ error: "Erro ao buscar dados da página." }); } });
+app.get('/public/typ/:slug', async (req, res) => { try { const { slug } = req.params; const result = await pool.query('SELECT design_json FROM thank_you_pages WHERE slug = $1', [slug]); if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' }); res.status(200).json(result.rows[0].design_json); } catch (error) { console.error("Erro ao buscar TYP pública:", error); res.status(500).json({ error: "Erro ao buscar dados da página." }); } });
+app.get('/public/sales/:slug', async (req, res) => { try { const { slug } = req.params; const result = await pool.query('SELECT design_json, offer_json FROM sales_pages WHERE slug = $1', [slug]); if (result.rows.length === 0) return res.status(404).json({ error: 'Página não encontrada.' }); res.status(200).json(result.rows[0]); } catch (error) { console.error("Erro ao buscar Sales Page pública:", error); res.status(500).json({ error: "Erro ao buscar dados da página." }); } });
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 3001;
