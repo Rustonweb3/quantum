@@ -169,7 +169,6 @@ app.post('/api/video-watch', async (req, res) => {
     res.status(500).json({ error: 'Falha ao registrar evento de vídeo.' });
   }
 });
-
 app.post('/api/video-watch/filter', async (req, res) => {
   try {
     const { video_id, user_id, page_slug } = req.body || {};
