@@ -3,6 +3,7 @@ import morgan from 'morgan';
 import helmet from 'helmet';
 import cors from 'cors';
 import pg from 'pg';
+// import { registerEntities } from "./entities.js"; // Linha original comentada, a nova será inserida
 
 const app = express();
 
@@ -25,12 +26,15 @@ const pool = new Pool({
   }
 });
 
+// A conexão e a chamada do registerEntities serão feitas dentro do bloco de inicialização
+// para garantir que o 'pool' esteja pronto.
+
 // --- INICIALIZAÇÃO E CRIAÇÃO DAS TABELAS ESPELHO ---
 const initializeDatabase = async () => {
     const client = await pool.connect();
     try {
         console.log("✅ Conexão com a Fonte Soberana (PostgreSQL) estabelecida!");
-
+        
         await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, first_name VARCHAR(255), phone VARCHAR(50), tags TEXT[], created_date TIMESTAMPTZ DEFAULT NOW(), source VARCHAR(255), country_code VARCHAR(10), city_area_code VARCHAR(10));`);
         console.log("✅ Tabela 'contacts' verificada.");
 
@@ -64,21 +68,19 @@ const initializeDatabase = async () => {
         `);
         console.log("✅ Tabela 'telemetry' verificada.");
 
-        // SOBERANIA_BEGIN: Tabela de Watch Analytics
         await client.query(`
           CREATE TABLE IF NOT EXISTS video_watch (
             id SERIAL PRIMARY KEY,
             video_id VARCHAR(255) NOT NULL,
             page_slug VARCHAR(255),
             user_id VARCHAR(255),
-            event_type VARCHAR(50) NOT NULL, -- play, pause, complete, leave
+            event_type VARCHAR(50) NOT NULL,
             progress_seconds INTEGER DEFAULT 0,
             duration_seconds INTEGER DEFAULT 0,
             created_date TIMESTAMPTZ DEFAULT NOW()
           );
         `);
         console.log("✅ Tabela 'video_watch' verificada.");
-        // SOBERANIA_END
 
     } catch (err) {
         console.error("❌ Erro catastrófico ao inicializar a Fonte Soberana:", err);
